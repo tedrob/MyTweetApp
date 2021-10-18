@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +32,6 @@ namespace myTweetApp
                 app.Stop();
             }
         }
-
         private static void ConfigureServices(ServiceCollection services)
         {
             services.AddLogging(configure => configure.AddConsole())
@@ -50,10 +50,10 @@ namespace myTweetApp
             _logger.LogInformation($"MyTweetApp Started at {DateTime.Now}");
             await LoadDashboard();
         }
-
         private async Task LoadDashboard()
         {
             var watch = new Stopwatch();
+            var tweets = new List<object>();
             try
             {
                 _logger.LogWarning("MyTweetApp->LoadDashboard() can throw Exception!");
@@ -66,33 +66,31 @@ namespace myTweetApp
                 };
                 var appClient = new TwitterClient(appCred);
                 await appClient.Auth.InitializeClientBearerTokenAsync();
-                Console.WriteLine(appClient.Users.GetAuthenticatedUserAsync());
+                
 
                 var stream = client.Streams.CreateTweetStream();
+                stream.AddLanguageFilter(LanguageFilter.English);
 
-                var count = 0;
+                var count = 1;                
+                Console.WriteLine($"Time now {DateTime.Now}");
+                var timer = new Stopwatch();
+                timer.Start();
                 stream.EventReceived += (sender, eventReceived) =>
-                {                    
-                    Console.WriteLine(eventReceived.Json);
-                    if (watch.ElapsedMilliseconds == 2000)
-                    {
-                        stream.Stop();                        
-                    }
-                    Console.WriteLine($"count {count} {watch.ElapsedMilliseconds}");
+                {
+                    //Console.WriteLine(eventReceived.Json);
+                    tweets.Add(eventReceived.Json);
                     count++;
-                    if (count > 2)
+                    if (count > 1000)
                     {
-                        stream.Stop();
-                    }
-                };
-                Console.WriteLine("count " +count);
-                await stream.StartAsync("https://stream.twitter.com/1.1/statuses/sample.json");                
-                
-                TweetinviEvents.SubscribeToClientEvents(client);
-                var authenticatedUser = await client.Users.GetAuthenticatedUserAsync();
-                Console.WriteLine(authenticatedUser);
-                Console.ReadLine();
-                
+                        stream.Stop();timer.Stop();
+                        TimeSpan timeTaken = timer.Elapsed;
+                        Console.WriteLine($"Time taken: {timeTaken.ToString(@"m\:ss\.fff")}");
+                        Console.WriteLine($"tweets {tweets.Count}");
+                        Console.WriteLine($"Time now {DateTime.Now}");
+                    }   
+                };                
+                await stream.StartAsync("https://stream.twitter.com/1.1/statuses/sample.json"); 
+                _logger.LogInformation($"2 of the tweets in Tweets \n\r {tweets[1]},\n\r\n\r {tweets[2]} ");  
             }
             catch (Exception)
             {
@@ -103,12 +101,10 @@ namespace myTweetApp
                 _logger.LogCritical($"MyTweetApp->LoadDashboard() Code need to be fixed");
             }
         }
-
         public void Stop()
         {
-            _logger.LogInformation($"MyTweetApp Stopped at {DateTime.Now}");
+            _logger.LogInformation($"MyTweetApp Stopped at {DateTime.Now}");            
         }
-
         public void HandleError(Exception ex)
         {
             _logger.LogError($"MyTweetApp Error Encountered at {DateTime.Now} & Error is : {ex.Message}");
@@ -126,7 +122,6 @@ namespace myTweetApp
                 Environment.GetEnvironmentVariable("TwitterApiSecret", EnvironmentVariableTarget.User)
             );
         }
-
         public static ITwitterCredentials GenerateAppCreds()
         {
             var userCreds = GenerateCredentials();
